@@ -74,7 +74,7 @@ Set the required environment variables:
 export GCP_PROJECT_ID="your-project-id"
 export VERTEX_SEARCH_DATA_STORE_ID="your-data-store-id"
 export GCP_LOCATION="us-central1"   # optional, defaults to us-central1
-export API_NAME="Kubernetes"        # optional, used in the UI title
+export API_NAME="API Docs Agent"        # optional, used in the UI title
 ```
 
 Then launch:
@@ -105,7 +105,7 @@ The server exposes two tools:
         "GCP_PROJECT_ID": "your-project-id",
         "VERTEX_SEARCH_DATA_STORE_ID": "your-data-store-id",
         "GCP_LOCATION": "us-central1",
-        "API_NAME": "Kubernetes"
+        "API_NAME": "API Docs Agent"
       }
     }
   }
@@ -119,23 +119,6 @@ Once connected, Claude will automatically call `search_docs` when you ask questi
 ## Running in Google Colab
 
 Open `notebooks/api_rag_colab.ipynb` in Colab. It walks through all three steps above and launches the app with a public share link.
-
-## Project structure
-
-```
-api-rag/
-├── src/
-│   ├── ingest.py        # Parses any OpenAPI spec → JSONL chunks
-│   ├── search.py        # Vertex AI Search client
-│   ├── generate.py      # Gemini generation with streaming
-│   ├── app.py           # Gradio web app
-│   └── mcp_server.py    # MCP server (search_docs, get_schema tools)
-├── notebooks/
-│   └── api_rag_colab.ipynb
-├── data/                # Output from ingest.py (gitignored)
-├── overview.md          # Kubernetes API reference (workshop example)
-└── requirements.txt
-```
 
 ## Environment variables
 

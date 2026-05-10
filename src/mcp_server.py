@@ -3,6 +3,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from src.search import VertexSearchClient
+from src.generate import GeminiGenerator
 
 _required = {"GCP_PROJECT_ID", "VERTEX_SEARCH_DATA_STORE_ID"}
 _missing = _required - set(os.environ)
@@ -13,6 +14,10 @@ _search_client = VertexSearchClient(
     project_id=os.environ["GCP_PROJECT_ID"],
     location=os.environ.get("GCP_LOCATION", "global"),
     data_store_id=os.environ["VERTEX_SEARCH_DATA_STORE_ID"],
+)
+_generator = GeminiGenerator(
+    project_id=os.environ["GCP_PROJECT_ID"],
+    location=os.environ.get("GEMINI_LOCATION", "us-central1"),
 )
 
 _api_name = os.environ.get("API_NAME", "API Docs Agent")
@@ -53,7 +58,9 @@ def search_docs(query: str, num_results: int = 5) -> str:
     """
     num_results = max(1, min(num_results, 10))
     chunks = _search_client.search(query, num_results=num_results)
-    return _format_chunks(chunks)
+    if not chunks:
+        return "No documentation found for that query. Try rephrasing or using different keywords."
+    return "".join(_generator.stream(query, chunks))
 
 
 @mcp.tool()

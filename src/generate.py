@@ -19,6 +19,16 @@ class GeminiGenerator:
             max_output_tokens=2048,
         )
 
+    def rewrite_query(self, question: str) -> str:
+        """Rewrite a natural language question into better search terms."""
+        prompt = (
+            "Rewrite the following question into concise search terms for an API documentation search engine. "
+            "Focus on HTTP method, resource name, and action. Output only the rewritten query, nothing else.\n\n"
+            f"Question: {question}\nSearch terms:"
+        )
+        response = self.model.generate_content(prompt, generation_config=GenerationConfig(temperature=0, max_output_tokens=64))
+        return response.text.strip()
+
     def _build_prompt(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None) -> str:
         chunks_text = ""
         for i, chunk in enumerate(retrieved_chunks, start=1):

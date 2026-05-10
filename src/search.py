@@ -52,11 +52,6 @@ class VertexSearchClient:
                     content = extractive_segments[0].get("content", "")
 
             if not content:
-                snippets = derived.get("snippets", [])
-                if snippets:
-                    content = snippets[0].get("snippet", "")
-
-            if not content:
                 struct_data = doc_data.get("struct_data", {})
                 content = struct_data.get("content", "") or struct_data.get("text", "")
 

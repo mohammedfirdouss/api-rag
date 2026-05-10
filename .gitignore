@@ -12,3 +12,6 @@ __pycache__/
 
 # VS Code
 .vscode/
+
+# Gradio
+.gradio/

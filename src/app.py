@@ -61,13 +61,12 @@ with gr.Blocks(title=API_NAME) as demo:
     def respond(message, chat_history, chunks):
         # 1. Retrieve
         retrieved = search_client.search(message, num_results=5)
-        # 2. Stream response — yield partial updates
+        # 2. Stream response with conversation history
         chat_history = chat_history + [{"role": "user", "content": message}]
         partial = ""
-        for fragment in generator.stream(message, retrieved):
+        for fragment in generator.stream(message, retrieved, history=chat_history[:-1]):
             partial += fragment
             yield "", chat_history + [{"role": "assistant", "content": partial}], chunks, format_sources(retrieved)
-        # Final yield with completed answer and updated chunks state
         yield "", chat_history + [{"role": "assistant", "content": partial}], retrieved, format_sources(retrieved)
 
     msg_input.submit(

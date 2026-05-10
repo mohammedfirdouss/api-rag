@@ -19,7 +19,7 @@ class GeminiGenerator:
             max_output_tokens=2048,
         )
 
-    def _build_prompt(self, question: str, retrieved_chunks: list[dict]) -> str:
+    def _build_prompt(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None) -> str:
         chunks_text = ""
         for i, chunk in enumerate(retrieved_chunks, start=1):
             meta = chunk.get("metadata", {})
@@ -31,13 +31,20 @@ class GeminiGenerator:
             content = chunk.get("content", "").strip()
             chunks_text += f"[Chunk {i}] ({meta_str})\n{content}\n\n"
 
+        history_text = ""
+        if history:
+            for turn in history[-6:]:  # last 3 exchanges
+                role = "User" if turn["role"] == "user" else "Assistant"
+                history_text += f"{role}: {turn['content']}\n"
+            history_text = f"## Conversation History\n\n{history_text.strip()}\n\n"
+
         prompt = f"""You are an API documentation assistant. Your role is to answer questions about the API accurately and clearly, based solely on the provided documentation chunks.
 
 ## Retrieved Documentation Chunks
 
 {chunks_text.strip()}
 
-## Question
+{history_text}## Question
 
 {question}
 
@@ -53,17 +60,13 @@ class GeminiGenerator:
 """
         return prompt
 
-    def generate(self, question: str, retrieved_chunks: list[dict]) -> dict:
-        prompt = self._build_prompt(question, retrieved_chunks)
+    def generate(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None) -> dict:
+        prompt = self._build_prompt(question, retrieved_chunks, history)
         response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        answer = response.text.strip()
-        return {
-            "answer": answer,
-            "sources": retrieved_chunks,
-        }
+        return {"answer": response.text.strip(), "sources": retrieved_chunks}
 
-    def stream(self, question: str, retrieved_chunks: list[dict]):
-        prompt = self._build_prompt(question, retrieved_chunks)
+    def stream(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None):
+        prompt = self._build_prompt(question, retrieved_chunks, history)
         for chunk in self.model.generate_content(
             prompt,
             generation_config=self.generation_config,

@@ -116,12 +116,12 @@ def chunk_operations(spec: dict) -> list[dict]:
 
             chunks.append({
                 "id": f"{method}_{operation_id}",
-                "content": content,
-                "metadata": {
+                "structData": {
+                    "content": content,
                     "path": path,
                     "method": method.upper(),
                     "operationId": operation_id,
-                    "tags": tags,
+                    "tags": ", ".join(tags),
                     "api_group": api_group,
                 },
             })
@@ -170,8 +170,8 @@ def chunk_schemas(spec: dict) -> list[dict]:
 
         chunks.append({
             "id": f"schema_{safe_id}",
-            "content": content,
-            "metadata": {
+            "structData": {
+                "content": content,
                 "schema_name": schema_name,
                 "type": schema_type,
                 "kind": "schema_definition",

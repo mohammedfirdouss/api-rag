@@ -76,7 +76,7 @@ with gr.Blocks(title=API_NAME) as demo:
         )
         msg_input = gr.Textbox(placeholder="Ask a question...", show_label=False, scale=4)
 
-    chatbot = gr.Chatbot(type="messages", height=500)
+    chatbot = gr.Chatbot(height=500)
 
     with gr.Accordion("Sources", open=False):
         sources_display = gr.Markdown("No sources retrieved yet.")

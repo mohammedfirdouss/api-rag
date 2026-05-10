@@ -26,8 +26,11 @@ class GeminiGenerator:
             "Focus on HTTP method, resource name, and action. Output only the rewritten query, nothing else.\n\n"
             f"Question: {question}\nSearch terms:"
         )
-        response = self.model.generate_content(prompt, generation_config=GenerationConfig(temperature=0, max_output_tokens=64))
-        return response.text.strip()
+        try:
+            response = self.model.generate_content(prompt, generation_config=GenerationConfig(temperature=0, max_output_tokens=256))
+            return response.text.strip()
+        except Exception:
+            return question
 
     def _build_prompt(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None) -> str:
         chunks_text = ""

@@ -1,4 +1,5 @@
 gradio>=4.0
+google-api-core
 google-cloud-discoveryengine
 vertexai
 google-cloud-aiplatform==1.71.1

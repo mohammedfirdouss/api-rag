@@ -1,3 +1,4 @@
+from google.api_core.client_options import ClientOptions
 from google.cloud import discoveryengine_v1 as discoveryengine
 
 
@@ -6,11 +7,14 @@ class VertexSearchClient:
         self.project_id = project_id
         self.location = location
         self.data_store_id = data_store_id
-        self.client = discoveryengine.SearchServiceClient()
+        client_options = None
+        if location != "global":
+            client_options = ClientOptions(api_endpoint=f"{location}-discoveryengine.googleapis.com")
+        self.client = discoveryengine.SearchServiceClient(client_options=client_options)
         self.serving_config = (
             f"projects/{project_id}/locations/{location}"
             f"/collections/default_collection"
-            f"/dataStores/{data_store_id}"
+            f"/engines/{data_store_id}"
             f"/servingConfigs/default_config"
         )
 
@@ -18,10 +22,6 @@ class VertexSearchClient:
         content_search_spec = discoveryengine.SearchRequest.ContentSearchSpec(
             snippet_spec=discoveryengine.SearchRequest.ContentSearchSpec.SnippetSpec(
                 return_snippet=True,
-            ),
-            extractive_content_spec=discoveryengine.SearchRequest.ContentSearchSpec.ExtractiveContentSpec(
-                max_extractive_answer_count=1,
-                max_extractive_segment_count=1,
             ),
         )
 

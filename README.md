@@ -54,7 +54,7 @@ This writes `data/myapi_chunks.jsonl`. One chunk per endpoint operation, one per
 **Kubernetes example:**
 ```bash
 python -m src.ingest \
-  --spec https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json \
+  --spec https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.0/api/openapi-spec/swagger.json \
   --name kubernetes
 ```
 

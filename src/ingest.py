@@ -9,8 +9,6 @@ import yaml
 
 MAX_CONTENT_CHARS = 6000
 DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "data"
-
-
 def load_spec(source: str) -> dict:
     parsed = urlparse(source)
     if parsed.scheme in ("http", "https"):
@@ -19,29 +17,29 @@ def load_spec(source: str) -> dict:
         content = response.text
     else:
         content = Path(source).read_text(encoding="utf-8")
-
     try:
         return json.loads(content)
     except json.JSONDecodeError:
         return yaml.safe_load(content)
-
+def detect_format(source: str, data: dict) -> str:
+    """Return 'openapi', 'postman', or 'markdown'."""
+    if source.endswith(".md") or (Path(source).exists() and Path(source).is_dir()):
+        return "markdown"
+    if "info" in data and "_postman_schema" in data.get("info", {}):
+        return "postman"
+    return "openapi"
 
 def get_schemas(spec: dict) -> dict:
     components = spec.get("components", {})
     if components.get("schemas"):
         return components["schemas"]
     return spec.get("definitions", {})
-
-
 def resolve_ref(ref: str, spec: dict) -> dict:
-    """Resolve a $ref pointer like '#/parameters/foo' or '#/components/parameters/foo'."""
     parts = ref.lstrip("#/").split("/")
     node = spec
     for part in parts:
         node = node.get(part, {})
     return node
-
-
 def derive_api_group(tags: list[str], path: str) -> str:
     if tags:
         return tags[0]
@@ -50,8 +48,6 @@ def derive_api_group(tags: list[str], path: str) -> str:
         if part in ("apis", "api") and i + 1 < len(parts):
             return parts[i + 1]
     return "core"
-
-
 def format_parameters(parameters: list[dict]) -> str:
     if not parameters:
         return ""
@@ -61,10 +57,8 @@ def format_parameters(parameters: list[dict]) -> str:
         location = param.get("in", "")
         required = "required" if param.get("required") else "optional"
         description = param.get("description", "").strip()
-
         schema = param.get("schema", {})
         param_type = param.get("type") or schema.get("type", "")
-
         line = f"  - {name} ({location}, {required}"
         if param_type:
             line += f", {param_type}"
@@ -73,8 +67,6 @@ def format_parameters(parameters: list[dict]) -> str:
             line += f": {description}"
         lines.append(line)
     return "\n".join(lines)
-
-
 def format_responses(responses: dict) -> str:
     if not responses:
         return ""
@@ -83,20 +75,14 @@ def format_responses(responses: dict) -> str:
         description = response.get("description", "").strip()
         lines.append(f"  - {status_code}: {description}")
     return "\n".join(lines)
-
-
 def chunk_operations(spec: dict) -> list[dict]:
-    paths = spec.get("paths", {})
     chunks = []
-
-    for path, path_item in paths.items():
+    for path, path_item in spec.get("paths", {}).items():
         shared_params = path_item.get("parameters", [])
-
         for method in ("get", "post", "put", "patch", "delete", "head", "options"):
             operation = path_item.get(method)
             if not operation:
                 continue
-
             operation_id = operation.get("operationId", f"{method}_{path}")
             tags = operation.get("tags", [])
             summary = operation.get("summary", "").strip()
@@ -135,10 +121,7 @@ def chunk_operations(spec: dict) -> list[dict]:
                     "api_group": api_group,
                 },
             })
-
     return chunks
-
-
 def format_properties(properties: dict, required: list[str]) -> str:
     if not properties:
         return ""
@@ -154,13 +137,9 @@ def format_properties(properties: dict, required: list[str]) -> str:
             line += f": {prop_desc}"
         lines.append(line)
     return "\n".join(lines)
-
-
 def chunk_schemas(spec: dict) -> list[dict]:
-    schemas = get_schemas(spec)
     chunks = []
-
-    for schema_name, schema in schemas.items():
+    for schema_name, schema in get_schemas(spec).items():
         description = schema.get("description", "").strip()
         properties = schema.get("properties", {})
         required = schema.get("required", [])
@@ -187,9 +166,95 @@ def chunk_schemas(spec: dict) -> list[dict]:
                 "kind": "schema_definition",
             },
         })
-
     return chunks
 
+def _iter_postman_requests(items: list, folder: str = "") -> list[tuple]:
+    results = []
+    for item in items:
+        name = item.get("name", "")
+        if "item" in item:
+            results.extend(_iter_postman_requests(item["item"], folder=name))
+        elif "request" in item:
+            results.append((folder, name, item["request"]))
+    return results
+def chunk_postman(collection: dict) -> list[dict]:
+    chunks = []
+    for folder, name, req in _iter_postman_requests(collection.get("item", [])):
+        method = req.get("method", "GET").upper()
+        url_obj = req.get("url", {})
+        url = url_obj if isinstance(url_obj, str) else url_obj.get("raw", "")
+        path = "/" + "/".join(url_obj.get("path", [])) if isinstance(url_obj, dict) else url
+        description = req.get("description", "")
+        if isinstance(description, dict):
+            description = description.get("content", "")
+        description = description.strip()
+
+        content_parts = [f"Name: {name}", f"Method: {method}", f"URL: {url}"]
+        if folder:
+            content_parts.append(f"Folder: {folder}")
+        if description:
+            content_parts.append(f"Description: {description}")
+        headers = req.get("header", [])
+        if headers:
+            content_parts.append("Headers: " + ", ".join(h.get("key", "") for h in headers if not h.get("disabled")))
+        body = req.get("body", {})
+        if body and body.get("mode") == "raw" and body.get("raw"):
+            content_parts.append(f"Body:\n{body['raw'].strip()[:500]}")
+
+        content = "\n".join(content_parts)
+        if len(content) > MAX_CONTENT_CHARS:
+            content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
+
+        safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", f"{method}_{folder}_{name}")
+        chunks.append({
+            "id": safe_id,
+            "structData": {
+                "content": content,
+                "name": name,
+                "method": method,
+                "path": path,
+                "folder": folder,
+                "kind": "postman_request",
+            },
+        })
+    return chunks
+
+def _split_markdown_sections(text: str) -> list[tuple[str, str]]:
+    """Split markdown into (heading, content) sections on H1/H2 boundaries."""
+    pattern = re.compile(r"^(#{1,2} .+)$", re.MULTILINE)
+    positions = [m.start() for m in pattern.finditer(text)]
+    if not positions:
+        return [("Document", text)]
+    sections = []
+    for i, pos in enumerate(positions):
+        end = positions[i + 1] if i + 1 < len(positions) else len(text)
+        block = text[pos:end].strip()
+        heading_end = block.index("\n") if "\n" in block else len(block)
+        heading = block[:heading_end].lstrip("#").strip()
+        body = block[heading_end:].strip()
+        if body:
+            sections.append((heading, block))
+    return sections
+def chunk_markdown(source: str) -> list[dict]:
+    p = Path(source)
+    files = sorted(p.rglob("*.md")) if p.is_dir() else [p]
+    chunks = []
+    for md_file in files:
+        text = md_file.read_text(encoding="utf-8")
+        for i, (heading, content) in enumerate(_split_markdown_sections(text)):
+            if len(content) > MAX_CONTENT_CHARS:
+                content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
+            safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", f"{md_file.stem}_{heading}_{i}")
+            chunks.append({
+                "id": safe_id,
+                "structData": {
+                    "content": content,
+                    "heading": heading,
+                    "source": md_file.name,
+                    "kind": "markdown_section",
+                },
+            })
+    return chunks
 
 def upload_to_vertex(jsonl_path: Path, project_id: str, location: str, data_store_id: str) -> None:
     from google.cloud import discoveryengine_v1 as discoveryengine
@@ -199,17 +264,11 @@ def upload_to_vertex(jsonl_path: Path, project_id: str, location: str, data_stor
         f"projects/{project_id}/locations/{location}"
         f"/collections/default_collection/dataStores/{data_store_id}/branches/default_branch"
     )
-
     documents = []
     with jsonl_path.open(encoding="utf-8") as f:
         for line in f:
             chunk = json.loads(line)
-            documents.append(
-                discoveryengine.Document(
-                    id=chunk["id"],
-                    struct_data=chunk["structData"],
-                )
-            )
+            documents.append(discoveryengine.Document(id=chunk["id"], struct_data=chunk["structData"]))
 
     print(f"Uploading {len(documents)} documents to Vertex AI Search...")
     operation = client.import_documents(
@@ -220,37 +279,42 @@ def upload_to_vertex(jsonl_path: Path, project_id: str, location: str, data_stor
         )
     )
     print("Waiting for import to complete...")
-    result = operation.result()
-    print(f"Import complete: {result}")
-
+    print(f"Import complete: {operation.result()}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest an OpenAPI spec into JSONL chunks for Vertex AI Search.")
-    parser.add_argument("--spec", required=True, help="URL or local file path to the OpenAPI spec (JSON or YAML)")
-    parser.add_argument("--name", required=True, help="Short name for the API (used in the output filename, e.g. 'kubernetes', 'stripe')")
-    parser.add_argument("--version", default="", help="Optional version string appended to the filename, e.g. 'v1.36.0' → kubernetes_v1.36.0_chunks.jsonl")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory to write the JSONL file (default: data/)")
-    parser.add_argument("--upload", action="store_true", help="Upload to Vertex AI Search after ingestion (requires GCP_PROJECT_ID, GCP_LOCATION, VERTEX_SEARCH_DATA_STORE_ID env vars)")
+    parser = argparse.ArgumentParser(description="Ingest API docs into JSONL chunks for Vertex AI Search.")
+    parser.add_argument("--spec", required=True, help="OpenAPI spec (URL or file), Postman collection JSON, or Markdown file/directory")
+    parser.add_argument("--name", required=True, help="Short name for the API (used in the output filename)")
+    parser.add_argument("--version", default="", help="Optional version string, e.g. 'v1.36.0'")
+    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--upload", action="store_true", help="Upload to Vertex AI Search after ingestion")
     args = parser.parse_args()
 
     filename = f"{args.name}_{args.version}_chunks.jsonl" if args.version else f"{args.name}_chunks.jsonl"
     output_path = Path(args.output_dir) / filename
 
-    print(f"Loading spec from: {args.spec}")
-    spec = load_spec(args.spec)
+    # Markdown: no HTTP load needed
+    if Path(args.spec).exists() and (Path(args.spec).is_dir() or args.spec.endswith(".md")):
+        print(f"Format: markdown")
+        all_chunks = chunk_markdown(args.spec)
+    else:
+        print(f"Loading spec from: {args.spec}")
+        data = load_spec(args.spec)
+        fmt = detect_format(args.spec, data)
+        print(f"Format: {fmt}")
 
-    openapi_version = spec.get("openapi") or spec.get("swagger", "unknown")
-    print(f"OpenAPI version: {openapi_version}")
-
-    print("Chunking API operations...")
-    operation_chunks = chunk_operations(spec)
-    print(f"  Operations: {len(operation_chunks)}")
-
-    print("Chunking schema definitions...")
-    schema_chunks = chunk_schemas(spec)
-    print(f"  Schemas: {len(schema_chunks)}")
-
-    all_chunks = operation_chunks + schema_chunks
+        if fmt == "postman":
+            print("Chunking Postman requests...")
+            all_chunks = chunk_postman(data)
+        else:
+            print(f"OpenAPI version: {data.get('openapi') or data.get('swagger', 'unknown')}")
+            print("Chunking API operations...")
+            operation_chunks = chunk_operations(data)
+            print(f"  Operations: {len(operation_chunks)}")
+            print("Chunking schema definitions...")
+            schema_chunks = chunk_schemas(data)
+            print(f"  Schemas: {len(schema_chunks)}")
+            all_chunks = operation_chunks + schema_chunks
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
@@ -262,7 +326,6 @@ def main():
 
     if args.upload:
         import os
-        project_id = os.environ["GCP_PROJECT_ID"]
-        location = os.environ.get("GCP_LOCATION", "global")
-        data_store_id = os.environ["VERTEX_SEARCH_DATA_STORE_ID"]
-        upload_to_vertex(output_path, project_id, location, data_store_id)
+        upload_to_vertex(output_path, os.environ["GCP_PROJECT_ID"], os.environ.get("GCP_LOCATION", "global"), os.environ["VERTEX_SEARCH_DATA_STORE_ID"])
+if __name__ == "__main__":
+    main()

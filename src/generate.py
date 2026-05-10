@@ -7,7 +7,7 @@ class GeminiGenerator:
         self,
         project_id: str,
         location: str = "us-central1",
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-pro",
     ):
         self.project_id = project_id
         self.location = location

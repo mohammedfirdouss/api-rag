@@ -13,7 +13,7 @@ if _missing:
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
 DATA_STORE_ID = os.environ["VERTEX_SEARCH_DATA_STORE_ID"]
-API_NAME = os.environ.get("API_NAME", "API")
+API_NAME = os.environ.get("API_NAME", "API Docs Agent")
 
 search_client = VertexSearchClient(
     project_id=PROJECT_ID,
@@ -45,14 +45,14 @@ def format_sources(chunks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-with gr.Blocks(title=f"{API_NAME} Documentation Agent") as demo:
-    gr.Markdown(f"# {API_NAME} Documentation Agent")
-    gr.Markdown(f"Ask any question about the {API_NAME} API")
+with gr.Blocks(title=API_NAME) as demo:
+    gr.Markdown(f"# {API_NAME}")
+    gr.Markdown(f"Ask any question about the API")
 
     chunks_state = gr.State([])
 
     chatbot = gr.Chatbot(type="messages", height=500)
-    msg_input = gr.Textbox(placeholder=f"Ask a question about the {API_NAME} API...", show_label=False)
+    msg_input = gr.Textbox(placeholder=f"Ask a question...", show_label=False)
 
     with gr.Accordion("Sources", open=False):
         sources_display = gr.Markdown("No sources retrieved yet.")

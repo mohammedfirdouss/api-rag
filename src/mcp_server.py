@@ -15,7 +15,7 @@ _search_client = VertexSearchClient(
     data_store_id=os.environ["VERTEX_SEARCH_DATA_STORE_ID"],
 )
 
-_api_name = os.environ.get("API_NAME", "API")
+_api_name = os.environ.get("API_NAME", "API Docs Agent")
 
 mcp = FastMCP(f"{_api_name} Docs")
 

@@ -5,3 +5,4 @@ google-cloud-aiplatform==1.71.1
 requests
 pyyaml
 mcp[cli]
+python-dotenv

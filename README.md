@@ -6,6 +6,12 @@ It works by searching your documentation first, then using that retrieved conten
 
 This workshop uses the **Kubernetes API** as the example, but the same pipeline works for any API with an OpenAPI spec or existing documentation.
 
+![Chat demo](assets/chat-demo.png)
+
+*Left: streamed answer with citations. Right: source chunks retrieved from Vertex AI Search.*
+
+![Sources panel](assets/sources-panel.png)
+
 ## How it works
 
 1. **Ingest** — Parses your API spec and chunks it into documents (one per endpoint, one per schema). Outputs a JSONL file.
@@ -65,6 +71,8 @@ python -m src.ingest \
 3. Import `data/<name>_chunks.jsonl` (upload via Cloud Storage or direct upload).
 4. Wait for indexing to complete (a few minutes).
 5. Note your **Data Store ID** — you'll need it in the next step.
+
+![Vertex AI Search data store](assets/vertex-search-datastore.png)
 
 ## Step 3 — Run the app
 

@@ -228,11 +228,13 @@ def main():
     parser = argparse.ArgumentParser(description="Ingest an OpenAPI spec into JSONL chunks for Vertex AI Search.")
     parser.add_argument("--spec", required=True, help="URL or local file path to the OpenAPI spec (JSON or YAML)")
     parser.add_argument("--name", required=True, help="Short name for the API (used in the output filename, e.g. 'kubernetes', 'stripe')")
+    parser.add_argument("--version", default="", help="Optional version string appended to the filename, e.g. 'v1.36.0' → kubernetes_v1.36.0_chunks.jsonl")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory to write the JSONL file (default: data/)")
     parser.add_argument("--upload", action="store_true", help="Upload to Vertex AI Search after ingestion (requires GCP_PROJECT_ID, GCP_LOCATION, VERTEX_SEARCH_DATA_STORE_ID env vars)")
     args = parser.parse_args()
 
-    output_path = Path(args.output_dir) / f"{args.name}_chunks.jsonl"
+    filename = f"{args.name}_{args.version}_chunks.jsonl" if args.version else f"{args.name}_chunks.jsonl"
+    output_path = Path(args.output_dir) / filename
 
     print(f"Loading spec from: {args.spec}")
     spec = load_spec(args.spec)

@@ -4,12 +4,7 @@
       "command": "python",
       "args": ["-m", "src.mcp_server"],
       "cwd": "/workspaces/api-rag",
-      "env": {
-        "GCP_PROJECT_ID": "your-project-id",
-        "VERTEX_SEARCH_DATA_STORE_ID": "your-data-store-id",
-        "GCP_LOCATION": "us-central1",
-        "API_NAME": "API Docs Agent"
-      }
+      "envFile": "/workspaces/api-rag/.env"
     }
   }
 }

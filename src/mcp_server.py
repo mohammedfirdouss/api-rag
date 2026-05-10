@@ -11,7 +11,7 @@ if _missing:
 
 _search_client = VertexSearchClient(
     project_id=os.environ["GCP_PROJECT_ID"],
-    location=os.environ.get("GCP_LOCATION", "us-central1"),
+    location=os.environ.get("GCP_LOCATION", "global"),
     data_store_id=os.environ["VERTEX_SEARCH_DATA_STORE_ID"],
 )
 

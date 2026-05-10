@@ -18,7 +18,7 @@ This workshop uses the **Kubernetes API** as the example, but the same pipeline 
 - A Google Cloud project with these APIs enabled:
   - Vertex AI (`aiplatform.googleapis.com`)
   - Discovery Engine / Vertex AI Search (`discoveryengine.googleapis.com`)
-- A Vertex AI Search **unstructured data store** (generic, not website or structured)
+- A Vertex AI Search data store (structured, **JSONL with document IDs**)
 - Application Default Credentials configured (`gcloud auth application-default login`)
 
 ## Setup
@@ -61,7 +61,7 @@ python -m src.ingest \
 ## Step 2 — Upload to Vertex AI Search
 
 1. Go to the [Vertex AI Search console](https://console.cloud.google.com/gen-app-builder/data-stores).
-2. Create a new data store → **Generic** → **Unstructured documents**.
+2. Create a new data store → **Structured Data** → **JSONL with document IDs**.
 3. Import `data/<name>_chunks.jsonl` (upload via Cloud Storage or direct upload).
 4. Wait for indexing to complete (a few minutes).
 5. Note your **Data Store ID** — you'll need it in the next step.

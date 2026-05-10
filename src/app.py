@@ -11,7 +11,8 @@ if _missing:
     raise RuntimeError(f"Missing required environment variables: {', '.join(sorted(_missing))}")
 
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
-LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
+LOCATION = os.environ.get("GCP_LOCATION", "global")
+GEMINI_LOCATION = os.environ.get("GEMINI_LOCATION", "us-central1")
 DATA_STORE_ID = os.environ["VERTEX_SEARCH_DATA_STORE_ID"]
 API_NAME = os.environ.get("API_NAME", "API Docs Agent")
 
@@ -21,7 +22,7 @@ search_client = VertexSearchClient(
     data_store_id=DATA_STORE_ID,
 )
 
-generator = GeminiGenerator(project_id=PROJECT_ID, location=LOCATION)
+generator = GeminiGenerator(project_id=PROJECT_ID, location=GEMINI_LOCATION)
 
 
 def format_sources(chunks: list[dict]) -> str:

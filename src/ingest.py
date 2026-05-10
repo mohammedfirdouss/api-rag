@@ -33,6 +33,15 @@ def get_schemas(spec: dict) -> dict:
     return spec.get("definitions", {})
 
 
+def resolve_ref(ref: str, spec: dict) -> dict:
+    """Resolve a $ref pointer like '#/parameters/foo' or '#/components/parameters/foo'."""
+    parts = ref.lstrip("#/").split("/")
+    node = spec
+    for part in parts:
+        node = node.get(part, {})
+    return node
+
+
 def derive_api_group(tags: list[str], path: str) -> str:
     if tags:
         return tags[0]
@@ -92,7 +101,8 @@ def chunk_operations(spec: dict) -> list[dict]:
             tags = operation.get("tags", [])
             summary = operation.get("summary", "").strip()
             description = operation.get("description", "").strip()
-            parameters = shared_params + operation.get("parameters", [])
+            raw_params = shared_params + operation.get("parameters", [])
+            parameters = [resolve_ref(p["$ref"], spec) if "$ref" in p else p for p in raw_params]
             responses = operation.get("responses", {})
             api_group = derive_api_group(tags, path)
 

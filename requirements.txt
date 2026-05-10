@@ -1,6 +1,7 @@
 gradio>=4.0
 google-cloud-discoveryengine
 vertexai
+google-cloud-aiplatform==1.71.1
 requests
 pyyaml
 mcp[cli]

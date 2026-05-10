@@ -191,11 +191,45 @@ def chunk_schemas(spec: dict) -> list[dict]:
     return chunks
 
 
+def upload_to_vertex(jsonl_path: Path, project_id: str, location: str, data_store_id: str) -> None:
+    from google.cloud import discoveryengine_v1 as discoveryengine
+
+    client = discoveryengine.DocumentServiceClient()
+    parent = (
+        f"projects/{project_id}/locations/{location}"
+        f"/collections/default_collection/dataStores/{data_store_id}/branches/default_branch"
+    )
+
+    documents = []
+    with jsonl_path.open(encoding="utf-8") as f:
+        for line in f:
+            chunk = json.loads(line)
+            documents.append(
+                discoveryengine.Document(
+                    id=chunk["id"],
+                    struct_data=chunk["structData"],
+                )
+            )
+
+    print(f"Uploading {len(documents)} documents to Vertex AI Search...")
+    operation = client.import_documents(
+        request=discoveryengine.ImportDocumentsRequest(
+            parent=parent,
+            inline_source=discoveryengine.ImportDocumentsRequest.InlineSource(documents=documents),
+            reconciliation_mode=discoveryengine.ImportDocumentsRequest.ReconciliationMode.FULL,
+        )
+    )
+    print("Waiting for import to complete...")
+    result = operation.result()
+    print(f"Import complete: {result}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ingest an OpenAPI spec into JSONL chunks for Vertex AI Search.")
     parser.add_argument("--spec", required=True, help="URL or local file path to the OpenAPI spec (JSON or YAML)")
     parser.add_argument("--name", required=True, help="Short name for the API (used in the output filename, e.g. 'kubernetes', 'stripe')")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory to write the JSONL file (default: data/)")
+    parser.add_argument("--upload", action="store_true", help="Upload to Vertex AI Search after ingestion (requires GCP_PROJECT_ID, GCP_LOCATION, VERTEX_SEARCH_DATA_STORE_ID env vars)")
     args = parser.parse_args()
 
     output_path = Path(args.output_dir) / f"{args.name}_chunks.jsonl"
@@ -224,6 +258,9 @@ def main():
     print(f"Total chunks written: {len(all_chunks)}")
     print(f"Output: {output_path}")
 
-
-if __name__ == "__main__":
-    main()
+    if args.upload:
+        import os
+        project_id = os.environ["GCP_PROJECT_ID"]
+        location = os.environ.get("GCP_LOCATION", "global")
+        data_store_id = os.environ["VERTEX_SEARCH_DATA_STORE_ID"]
+        upload_to_vertex(output_path, project_id, location, data_store_id)

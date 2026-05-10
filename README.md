@@ -8,9 +8,11 @@ This workshop uses the **Kubernetes API** as the example, but the same pipeline 
 
 ![Chat demo](assets/chat-demo.png)
 
-*Left: streamed answer with citations. Right: source chunks retrieved from Vertex AI Search.*
+*Chat on the left, retrieved source chunks on the right. Answers stream in real time.*
 
 ![Sources panel](assets/sources-panel.png)
+
+*Each source shows the HTTP method, endpoint path, and a snippet from the indexed documentation.*
 
 ## How it works
 

@@ -1,0 +1,14 @@
+{
+	"name": "api-rag",
+	"build": {
+		"context": ".",
+		"dockerfile": "Dockerfile"
+	},
+	"forwardPorts": [7860],
+	"portsAttributes": {
+		"7860": { "label": "Gradio" }
+	},
+	"remoteEnv": {
+		"GCP_LOCATION": "global"
+	}
+}

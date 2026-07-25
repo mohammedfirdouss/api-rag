@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -70,9 +72,9 @@ def format_sources(chunks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def respond(message, chat_history, chunks, engine_label):
+def respond(message, chat_history, chunks, engine_label, turns):
     if not message.strip():
-        yield "", chat_history, chunks, format_sources(chunks)
+        yield "", chat_history, chunks, format_sources(chunks), turns
         return
     client = _make_search_client(ENGINES[engine_label])
     search_query = generator.rewrite_query(message)
@@ -80,17 +82,42 @@ def respond(message, chat_history, chunks, engine_label):
     chat_history = chat_history + [{"role": "user", "content": message}]
     if not retrieved:
         fallback = "I couldn't find any relevant documentation for that question. Try rephrasing or asking about a specific endpoint, resource, or parameter."
-        yield "", chat_history + [{"role": "assistant", "content": fallback}], chunks, "_No sources retrieved._"
+        turns = turns + [{"question": message, "answer": fallback, "sources": []}]
+        yield "", chat_history + [{"role": "assistant", "content": fallback}], chunks, "_No sources retrieved._", turns
         return
     partial = ""
     for fragment in generator.stream(message, retrieved, history=chat_history[:-1]):
         partial += fragment
-        yield "", chat_history + [{"role": "assistant", "content": partial}], chunks, format_sources(retrieved)
-    yield "", chat_history + [{"role": "assistant", "content": partial}], retrieved, format_sources(retrieved)
+        yield "", chat_history + [{"role": "assistant", "content": partial}], chunks, format_sources(retrieved), turns
+    turns = turns + [{"question": message, "answer": partial, "sources": retrieved}]
+    yield "", chat_history + [{"role": "assistant", "content": partial}], retrieved, format_sources(retrieved), turns
 
 
 def clear_chat():
-    return [], [], "_No sources retrieved yet._"
+    return [], [], "_No sources retrieved yet._", []
+
+
+FEEDBACK_LOG = Path(__file__).parent.parent / "data" / "feedback.jsonl"
+
+
+def on_like(evt: gr.LikeData, turns):
+    turn_index = evt.index // 2 if isinstance(evt.index, int) else evt.index[0] // 2
+    if turn_index < 0 or turn_index >= len(turns):
+        return
+    turn = turns[turn_index]
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "liked": bool(evt.liked),
+        "question": turn["question"],
+        "answer": turn["answer"],
+        "sources": [
+            {"id": s.get("id"), "metadata": s.get("metadata", {})}
+            for s in turn.get("sources", [])
+        ],
+    }
+    FEEDBACK_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with FEEDBACK_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
 
 
 theme = gr.themes.Soft(

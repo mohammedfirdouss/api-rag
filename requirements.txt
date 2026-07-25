@@ -7,3 +7,4 @@ requests
 pyyaml
 mcp[cli]
 python-dotenv
+chromadb

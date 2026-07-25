@@ -8,18 +8,16 @@ load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 import gradio as gr
 
-from src.search import VertexSearchClient
+from src.backend import create_search_client, default_engine_id, required_env_vars
 from src.generate import GeminiGenerator
 
-_required = {"GCP_PROJECT_ID", "VERTEX_SEARCH_DATA_STORE_ID"}
+_required = {"GCP_PROJECT_ID"} | required_env_vars()
 _missing = _required - set(os.environ)
 if _missing:
     raise RuntimeError(f"Missing required environment variables: {', '.join(sorted(_missing))}")
 
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
-LOCATION = os.environ.get("GCP_LOCATION", "global")
 GEMINI_LOCATION = os.environ.get("GEMINI_LOCATION", "us-central1")
-DATA_STORE_ID = os.environ["VERTEX_SEARCH_DATA_STORE_ID"]
 API_NAME = os.environ.get("API_NAME", "API Docs Agent")
 
 _engines_raw = os.environ.get("ENGINES", "")
@@ -30,7 +28,7 @@ if _engines_raw:
             label, eid = entry.split(":", 1)
             ENGINES[label.strip()] = eid.strip()
 if not ENGINES:
-    ENGINES[API_NAME] = DATA_STORE_ID
+    ENGINES[API_NAME] = default_engine_id()
 
 EXAMPLES = [
     "How do I create a Deployment?",
@@ -40,11 +38,11 @@ EXAMPLES = [
 ]
 
 
-def _make_search_client(engine_id: str) -> VertexSearchClient:
-    return VertexSearchClient(project_id=PROJECT_ID, location=LOCATION, data_store_id=engine_id)
+def _make_search_client(engine_id: str):
+    return create_search_client(engine_id)
 
 
-search_client = _make_search_client(DATA_STORE_ID)
+search_client = _make_search_client(next(iter(ENGINES.values())))
 generator = GeminiGenerator(project_id=PROJECT_ID, location=GEMINI_LOCATION)
 
 
@@ -169,4 +167,21 @@ with gr.Blocks(title=API_NAME) as demo:
         )
 
 if __name__ == "__main__":
-    demo.launch(share=True, theme=theme, css=css)
+    share = os.environ.get("GRADIO_SHARE", "false").strip().lower() in ("1", "true", "yes")
+    auth_raw = os.environ.get("GRADIO_AUTH", "").strip()
+    auth = None
+    if auth_raw:
+        user, _, password = auth_raw.partition(":")
+        if user and password:
+            auth = (user, password)
+        else:
+            print("GRADIO_AUTH must be in 'username:password' format; ignoring.")
+
+    if share and not auth:
+        print(
+            "WARNING: GRADIO_SHARE is enabled without GRADIO_AUTH. This will publish a "
+            "public URL to your billed Gemini/Vertex AI Search endpoint with no login. "
+            "Set GRADIO_AUTH=username:password to require a login before sharing."
+        )
+
+    demo.launch(share=share, auth=auth, theme=theme, css=css)

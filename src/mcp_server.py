@@ -8,19 +8,15 @@ load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 from mcp.server.fastmcp import FastMCP
 
-from src.search import VertexSearchClient
+from src.backend import create_search_client, required_env_vars
 from src.generate import GeminiGenerator
 
-_required = {"GCP_PROJECT_ID", "VERTEX_SEARCH_DATA_STORE_ID"}
+_required = {"GCP_PROJECT_ID"} | required_env_vars()
 _missing = _required - set(os.environ)
 if _missing:
     raise RuntimeError(f"Missing required environment variables: {', '.join(sorted(_missing))}")
 
-_search_client = VertexSearchClient(
-    project_id=os.environ["GCP_PROJECT_ID"],
-    location=os.environ.get("GCP_LOCATION", "global"),
-    data_store_id=os.environ["VERTEX_SEARCH_DATA_STORE_ID"],
-)
+_search_client = create_search_client()
 _generator = GeminiGenerator(
     project_id=os.environ["GCP_PROJECT_ID"],
     location=os.environ.get("GEMINI_LOCATION", "us-central1"),

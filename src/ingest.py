@@ -75,7 +75,7 @@ def format_responses(responses: dict) -> str:
         description = response.get("description", "").strip()
         lines.append(f"  - {status_code}: {description}")
     return "\n".join(lines)
-def chunk_operations(spec: dict) -> list[dict]:
+def chunk_operations(spec: dict, docs_base_url: str = "") -> list[dict]:
     chunks = []
     for path, path_item in spec.get("paths", {}).items():
         shared_params = path_item.get("parameters", [])
@@ -110,16 +110,20 @@ def chunk_operations(spec: dict) -> list[dict]:
             if len(content) > MAX_CONTENT_CHARS:
                 content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
 
+            struct_data = {
+                "content": content,
+                "path": path,
+                "method": method.upper(),
+                "operationId": operation_id,
+                "tags": ", ".join(tags),
+                "api_group": api_group,
+            }
+            if docs_base_url:
+                struct_data["url"] = f"{docs_base_url.rstrip('/')}#{operation_id}"
+
             chunks.append({
                 "id": f"{method}_{operation_id}",
-                "structData": {
-                    "content": content,
-                    "path": path,
-                    "method": method.upper(),
-                    "operationId": operation_id,
-                    "tags": ", ".join(tags),
-                    "api_group": api_group,
-                },
+                "structData": struct_data,
             })
     return chunks
 def format_properties(properties: dict, required: list[str]) -> str:
@@ -137,7 +141,7 @@ def format_properties(properties: dict, required: list[str]) -> str:
             line += f": {prop_desc}"
         lines.append(line)
     return "\n".join(lines)
-def chunk_schemas(spec: dict) -> list[dict]:
+def chunk_schemas(spec: dict, docs_base_url: str = "") -> list[dict]:
     chunks = []
     for schema_name, schema in get_schemas(spec).items():
         description = schema.get("description", "").strip()
@@ -157,14 +161,18 @@ def chunk_schemas(spec: dict) -> list[dict]:
         if len(content) > MAX_CONTENT_CHARS:
             content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
 
+        struct_data = {
+            "content": content,
+            "schema_name": schema_name,
+            "type": schema_type,
+            "kind": "schema_definition",
+        }
+        if docs_base_url:
+            struct_data["url"] = f"{docs_base_url.rstrip('/')}#{schema_name}"
+
         chunks.append({
             "id": f"schema_{safe_id}",
-            "structData": {
-                "content": content,
-                "schema_name": schema_name,
-                "type": schema_type,
-                "kind": "schema_definition",
-            },
+            "structData": struct_data,
         })
     return chunks
 
@@ -177,7 +185,7 @@ def _iter_postman_requests(items: list, folder: str = "") -> list[tuple]:
         elif "request" in item:
             results.append((folder, name, item["request"]))
     return results
-def chunk_postman(collection: dict) -> list[dict]:
+def chunk_postman(collection: dict, docs_base_url: str = "") -> list[dict]:
     chunks = []
     for folder, name, req in _iter_postman_requests(collection.get("item", [])):
         method = req.get("method", "GET").upper()

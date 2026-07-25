@@ -214,16 +214,20 @@ def chunk_postman(collection: dict, docs_base_url: str = "") -> list[dict]:
             content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
 
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", f"{method}_{folder}_{name}")
+        struct_data = {
+            "content": content,
+            "name": name,
+            "method": method,
+            "path": path,
+            "folder": folder,
+            "kind": "postman_request",
+        }
+        if docs_base_url:
+            struct_data["url"] = f"{docs_base_url.rstrip('/')}#{safe_id}"
+
         chunks.append({
             "id": safe_id,
-            "structData": {
-                "content": content,
-                "name": name,
-                "method": method,
-                "path": path,
-                "folder": folder,
-                "kind": "postman_request",
-            },
+            "structData": struct_data,
         })
     return chunks
 
@@ -243,7 +247,7 @@ def _split_markdown_sections(text: str) -> list[tuple[str, str]]:
         if body:
             sections.append((heading, block))
     return sections
-def chunk_markdown(source: str) -> list[dict]:
+def chunk_markdown(source: str, docs_base_url: str = "") -> list[dict]:
     p = Path(source)
     files = sorted(p.rglob("*.md")) if p.is_dir() else [p]
     chunks = []
@@ -253,19 +257,54 @@ def chunk_markdown(source: str) -> list[dict]:
             if len(content) > MAX_CONTENT_CHARS:
                 content = content[:MAX_CONTENT_CHARS] + "\n[truncated]"
             safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", f"{md_file.stem}_{heading}_{i}")
+            struct_data = {
+                "content": content,
+                "heading": heading,
+                "source": md_file.name,
+                "kind": "markdown_section",
+            }
+            if docs_base_url:
+                struct_data["url"] = f"{docs_base_url.rstrip('/')}/{md_file.name}"
+
             chunks.append({
                 "id": safe_id,
-                "structData": {
-                    "content": content,
-                    "heading": heading,
-                    "source": md_file.name,
-                    "kind": "markdown_section",
-                },
+                "structData": struct_data,
             })
     return chunks
 
+def ensure_vertex_datastore(project_id: str, location: str, data_store_id: str) -> None:
+    """Create the Vertex AI Search data store if it doesn't already exist, so
+    `--upload` works end-to-end without a manual console step."""
+    from google.api_core.exceptions import AlreadyExists
+    from google.cloud import discoveryengine_v1 as discoveryengine
+
+    client = discoveryengine.DataStoreServiceClient()
+    parent = f"projects/{project_id}/locations/{location}/collections/default_collection"
+    data_store = discoveryengine.DataStore(
+        display_name=data_store_id,
+        industry_vertical=discoveryengine.IndustryVertical.GENERIC,
+        solution_types=[discoveryengine.SolutionType.SOLUTION_TYPE_SEARCH],
+        content_config=discoveryengine.DataStore.ContentConfig.NO_CONTENT,
+    )
+    try:
+        print(f"Creating Vertex AI Search data store '{data_store_id}'...")
+        operation = client.create_data_store(
+            request=discoveryengine.CreateDataStoreRequest(
+                parent=parent,
+                data_store=data_store,
+                data_store_id=data_store_id,
+            )
+        )
+        operation.result()
+        print("Data store created.")
+    except AlreadyExists:
+        print(f"Data store '{data_store_id}' already exists, reusing it.")
+
+
 def upload_to_vertex(jsonl_path: Path, project_id: str, location: str, data_store_id: str) -> None:
     from google.cloud import discoveryengine_v1 as discoveryengine
+
+    ensure_vertex_datastore(project_id, location, data_store_id)
 
     client = discoveryengine.DocumentServiceClient()
     parent = (
@@ -295,7 +334,12 @@ def main():
     parser.add_argument("--name", required=True, help="Short name for the API (used in the output filename)")
     parser.add_argument("--version", default="", help="Optional version string, e.g. 'v1.36.0'")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
-    parser.add_argument("--upload", action="store_true", help="Upload to Vertex AI Search after ingestion")
+    parser.add_argument("--docs-base-url", default="", help="Base URL of your hosted docs; used to add a source link to each chunk")
+    parser.add_argument(
+        "--backend", choices=("local", "vertex"), default="local",
+        help="Where --upload indexes the chunks: a local Chroma index (default, no GCP data store needed) or Vertex AI Search",
+    )
+    parser.add_argument("--upload", action="store_true", help="Index the chunks (into the local Chroma store or Vertex AI Search, per --backend) after ingestion")
     args = parser.parse_args()
 
     filename = f"{args.name}_{args.version}_chunks.jsonl" if args.version else f"{args.name}_chunks.jsonl"
@@ -304,7 +348,7 @@ def main():
     # Markdown: no HTTP load needed
     if Path(args.spec).exists() and (Path(args.spec).is_dir() or args.spec.endswith(".md")):
         print(f"Format: markdown")
-        all_chunks = chunk_markdown(args.spec)
+        all_chunks = chunk_markdown(args.spec, docs_base_url=args.docs_base_url)
     else:
         print(f"Loading spec from: {args.spec}")
         data = load_spec(args.spec)
@@ -313,14 +357,14 @@ def main():
 
         if fmt == "postman":
             print("Chunking Postman requests...")
-            all_chunks = chunk_postman(data)
+            all_chunks = chunk_postman(data, docs_base_url=args.docs_base_url)
         else:
             print(f"OpenAPI version: {data.get('openapi') or data.get('swagger', 'unknown')}")
             print("Chunking API operations...")
-            operation_chunks = chunk_operations(data)
+            operation_chunks = chunk_operations(data, docs_base_url=args.docs_base_url)
             print(f"  Operations: {len(operation_chunks)}")
             print("Chunking schema definitions...")
-            schema_chunks = chunk_schemas(data)
+            schema_chunks = chunk_schemas(data, docs_base_url=args.docs_base_url)
             print(f"  Schemas: {len(schema_chunks)}")
             all_chunks = operation_chunks + schema_chunks
 
@@ -333,7 +377,15 @@ def main():
     print(f"Output: {output_path}")
 
     if args.upload:
-        import os
-        upload_to_vertex(output_path, os.environ["GCP_PROJECT_ID"], os.environ.get("GCP_LOCATION", "global"), os.environ["VERTEX_SEARCH_DATA_STORE_ID"])
+        if args.backend == "local":
+            from src.local_search import build_local_index, DEFAULT_PERSIST_DIR
+            import os
+            persist_dir = os.environ.get("LOCAL_INDEX_DIR", str(DEFAULT_PERSIST_DIR))
+            count = build_local_index(output_path, collection_name=args.name, persist_dir=persist_dir)
+            print(f"Indexed {count} chunks into local Chroma collection '{args.name}' at {persist_dir}")
+            print(f"Run the app with SEARCH_BACKEND=local and LOCAL_COLLECTION={args.name}")
+        else:
+            import os
+            upload_to_vertex(output_path, os.environ["GCP_PROJECT_ID"], os.environ.get("GCP_LOCATION", "global"), os.environ["VERTEX_SEARCH_DATA_STORE_ID"])
 if __name__ == "__main__":
     main()

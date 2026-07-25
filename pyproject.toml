@@ -1,0 +1,6 @@
+[tool.ruff.lint]
+# Keep CI focused on real bugs (undefined names, unused imports, syntax issues)
+# rather than opinionated style rules like import sorting, which this repo
+# hasn't been formatted against historically.
+select = ["E", "F"]
+ignore = ["E501"]

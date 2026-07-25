@@ -347,7 +347,7 @@ def main():
 
     # Markdown: no HTTP load needed
     if Path(args.spec).exists() and (Path(args.spec).is_dir() or args.spec.endswith(".md")):
-        print(f"Format: markdown")
+        print("Format: markdown")
         all_chunks = chunk_markdown(args.spec, docs_base_url=args.docs_base_url)
     else:
         print(f"Loading spec from: {args.spec}")

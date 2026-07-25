@@ -45,6 +45,14 @@ cd api-rag
 uv pip install -r requirements.txt
 ```
 
+If you want to keep local environment values in a file, copy the example template first:
+
+```bash
+cp .env.example env.txt
+```
+
+You can also use `env.txt.example` as the checked-in reference if you prefer that naming style.
+
 ## Step 1 — Ingest your API spec
 
 Point the ingester at any OpenAPI spec — a URL or a local file, JSON or YAML, OpenAPI 2.0 or 3.0:

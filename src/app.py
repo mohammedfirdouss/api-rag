@@ -54,12 +54,15 @@ def format_sources(chunks: list[dict]) -> str:
         meta = chunk.get("metadata", {})
         path = meta.get("path", "")
         method = meta.get("method", "")
+        url = meta.get("url", "")
         snippet = chunk.get("content", "").strip()[:300]
         header_parts = [f"**[{i}]**"]
         if method:
             header_parts.append(f"`{method}`")
         if path:
-            header_parts.append(f"`{path}`")
+            header_parts.append(f"`{path}`" if not url else f"[`{path}`]({url})")
+        elif url:
+            header_parts.append(f"[source]({url})")
         lines.append(" ".join(header_parts))
         if snippet:
             lines.append(f"> {snippet}{'…' if len(chunk.get('content', '')) > 300 else ''}")

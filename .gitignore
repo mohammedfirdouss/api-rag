@@ -1,5 +1,6 @@
 # Generated data (can be large)
 data/*.jsonl
+data/chroma/
 
 # Python
 __pycache__/

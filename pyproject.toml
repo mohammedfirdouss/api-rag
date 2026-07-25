@@ -3,4 +3,7 @@
 # rather than opinionated style rules like import sorting, which this repo
 # hasn't been formatted against historically.
 select = ["E", "F"]
-ignore = ["E501"]
+# E501: no enforced line length.
+# E402: these scripts intentionally set sys.path / load .env before importing
+# local modules that read env vars or the src package at import time.
+ignore = ["E501", "E402"]

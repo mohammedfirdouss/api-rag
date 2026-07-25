@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Import smoke test
+        run: |
+          python -c "import ast, pathlib
+          for f in pathlib.Path('src').glob('*.py'):
+              ast.parse(f.read_text())
+          print('All src modules parse cleanly')"
+
+      - name: Local backend end-to-end (ingest -> index -> search, no GCP required)
+        run: |
+          cat > /tmp/sample-openapi.json <<'EOF'
+          {
+            "openapi": "3.0.0",
+            "info": {"title": "Sample API", "version": "1.0"},
+            "paths": {
+              "/widgets": {
+                "get": {
+                  "operationId": "listWidgets",
+                  "summary": "List all widgets",
+                  "tags": ["Widgets"],
+                  "responses": {"200": {"description": "OK"}}
+                },
+                "post": {
+                  "operationId": "createWidget",
+                  "summary": "Create a widget",
+                  "tags": ["Widgets"],
+                  "responses": {"201": {"description": "Created"}}
+                }
+              }
+            },
+            "components": {
+              "schemas": {
+                "Widget": {
+                  "type": "object",
+                  "description": "A widget resource",
+                  "properties": {"id": {"type": "string"}, "name": {"type": "string"}},
+                  "required": ["id"]
+                }
+              }
+            }
+          }
+          EOF
+          python -m src.ingest --spec /tmp/sample-openapi.json --name sample --backend local --upload
+          python -c "
+          from src.local_search import LocalSearchClient
+          client = LocalSearchClient(collection_name='sample')
+          results = client.search('how do I create a widget', num_results=3)
+          assert results, 'expected at least one search result'
+          print(f'Local search returned {len(results)} results')
+          "

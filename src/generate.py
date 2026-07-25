@@ -1,5 +1,11 @@
+import logging
+import os
+import time
+
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiGenerator:
@@ -18,19 +24,31 @@ class GeminiGenerator:
             temperature=0.2,
             max_output_tokens=2048,
         )
+        self.rewrite_enabled = os.environ.get("ENABLE_QUERY_REWRITE", "true").strip().lower() in ("1", "true", "yes")
 
     def rewrite_query(self, question: str) -> str:
-        """Rewrite a natural language question into better search terms."""
+        """Rewrite a natural language question into better search terms.
+
+        This costs an extra Gemini round-trip per query. Set ENABLE_QUERY_REWRITE=false
+        to search on the raw question instead, if it isn't earning its latency/cost.
+        """
+        if not self.rewrite_enabled:
+            return question
         prompt = (
             "Rewrite the following question into concise search terms for an API documentation search engine. "
             "Focus on HTTP method, resource name, and action. Output only the rewritten query, nothing else.\n\n"
             f"Question: {question}\nSearch terms:"
         )
+        start = time.perf_counter()
         try:
             response = self.model.generate_content(prompt, generation_config=GenerationConfig(temperature=0, max_output_tokens=256))
-            return response.text.strip()
+            rewritten = response.text.strip()
         except Exception:
-            return question
+            logger.warning("Query rewrite failed, falling back to raw question", exc_info=True)
+            rewritten = question
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.info("rewrite_query took %.0fms (%r -> %r)", elapsed_ms, question, rewritten)
+        return rewritten
 
     def _build_prompt(self, question: str, retrieved_chunks: list[dict], history: list[dict] | None = None) -> str:
         chunks_text = ""

@@ -138,6 +138,7 @@ with gr.Blocks(title=API_NAME) as demo:
     gr.Markdown("Ask anything about the API documentation. Sources are shown on the right.")
 
     chunks_state = gr.State([])
+    turns_state = gr.State([])
 
     with gr.Row(equal_height=False):
         # ── Left: chat ──────────────────────────────────────────────
@@ -155,6 +156,7 @@ with gr.Blocks(title=API_NAME) as demo:
                     None,
                     "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
                 ),
+                likeable=True,
             )
             with gr.Row():
                 msg_input = gr.Textbox(
@@ -179,21 +181,22 @@ with gr.Blocks(title=API_NAME) as demo:
     # Wire up events (after all components are defined)
     submit_btn.click(
         respond,
-        inputs=[msg_input, chatbot, chunks_state, engine_dropdown],
-        outputs=[msg_input, chatbot, chunks_state, sources_display],
+        inputs=[msg_input, chatbot, chunks_state, engine_dropdown, turns_state],
+        outputs=[msg_input, chatbot, chunks_state, sources_display, turns_state],
     )
     msg_input.submit(
         respond,
-        inputs=[msg_input, chatbot, chunks_state, engine_dropdown],
-        outputs=[msg_input, chatbot, chunks_state, sources_display],
+        inputs=[msg_input, chatbot, chunks_state, engine_dropdown, turns_state],
+        outputs=[msg_input, chatbot, chunks_state, sources_display, turns_state],
     )
-    clear_btn.click(clear_chat, outputs=[chatbot, chunks_state, sources_display])
+    clear_btn.click(clear_chat, outputs=[chatbot, chunks_state, sources_display, turns_state])
+    chatbot.like(on_like, inputs=[turns_state], outputs=None)
 
     for ex, btn in zip(EXAMPLES, example_btns):
         btn.click(fn=lambda e=ex: e, outputs=msg_input).then(
             respond,
-            inputs=[msg_input, chatbot, chunks_state, engine_dropdown],
-            outputs=[msg_input, chatbot, chunks_state, sources_display],
+            inputs=[msg_input, chatbot, chunks_state, engine_dropdown, turns_state],
+            outputs=[msg_input, chatbot, chunks_state, sources_display, turns_state],
         )
 
 if __name__ == "__main__":

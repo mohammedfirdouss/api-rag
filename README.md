@@ -6,7 +6,7 @@ Finding a specific endpoint, parameter, or code example in API documentation usu
 
 It works by searching your documentation first, then using that retrieved content to compose the answer. The response includes references to the source chunks so you can verify it or read further. It does not guess or generate information that isn't in your docs.
 
-This workshop uses the **Kubernetes API** as the example, but the same pipeline works for any API with an OpenAPI spec or existing documentation.
+This example uses the **Kubernetes API**, but the same pipeline works for any API with an OpenAPI spec or existing documentation.
 
 ![Chat demo](assets/chat-demo.png)
 
@@ -22,7 +22,7 @@ This workshop uses the **Kubernetes API** as the example, but the same pipeline 
 2. **Index** — The chunks are indexed for retrieval, either in a local Chroma vector store (default, no GCP data store needed) or in Vertex AI Search, for production-scale deployments.
 3. **Query** — The Gradio web app takes a question, retrieves the top 5 matching chunks, and passes them to Gemini to generate a structured answer with citations.
 
-Retrieval and generation are decoupled: `SEARCH_BACKEND` picks the retrieval backend independently of the LLM. Generation always uses Gemini, so a GCP project is required either way — the local backend just removes the need to set up and pay for a Vertex AI Search data store while you're trying the project out.
+`SEARCH_BACKEND` picks the retrieval backend independently of generation, which always uses Gemini — the local backend just removes the need to set up and pay for a Vertex AI Search data store while you're trying the project out.
 
 ## Requirements
 
@@ -61,14 +61,14 @@ cp env.txt.example env.txt
 Point the ingester at any OpenAPI spec — a URL or a local file, JSON or YAML, OpenAPI 2.0 or 3.0 — and pass `--upload` to index it immediately:
 
 ```bash
-# Local Chroma index (default backend, no GCP data store needed)
+# From a URL
 python -m src.ingest --spec https://example.com/openapi.json --name myapi --upload
 
-# From a local file
+# From a local file — same flags either way
 python -m src.ingest --spec ./openapi.yaml --name myapi --upload
 ```
 
-This writes `data/myapi_chunks.jsonl` (one chunk per endpoint operation, one per schema definition) and indexes it into a local Chroma collection named `myapi` under `data/chroma/`.
+By default (no `--backend` flag) this writes `data/myapi_chunks.jsonl` (one chunk per endpoint operation, one per schema definition) and indexes it into a local Chroma collection named `myapi` under `data/chroma/` — no GCP data store needed.
 
 Add `--docs-base-url https://your-docs-site.example.com/reference` to attach a link back to your hosted docs on each retrieved source, shown in the app's sources panel.
 
